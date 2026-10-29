@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>html{color-scheme:light}body{margin:0}</style>
+<title>Evaluador de Inversión Industrial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: sticky header (name, live score, six-step tabs) over one working column; the last step is a dashboard: verdict gauge, area bars, cash chart, indicator table, ranked improvement plan. */
+:root{
+  --bg:#F1F4F7;--surface:#FFFFFF;--surface2:#E8EDF2;--ink:#13202B;--muted:#53636F;--line:#D3DBE3;
+  --accent:#0D5C7C;--accent-ink:#FFFFFF;--accent-soft:#DAEAF1;
+  --good:#2E8B5E;--good-ink:#17653F;--good-soft:#DCF0E5;
+  --warn:#D08A12;--warn-ink:#80500A;--warn-soft:#F8EBD0;
+  --bad:#C4473E;--bad-ink:#A0281F;--bad-soft:#F7DDDA;
+  --f-display:'IBM Plex Sans Condensed','Arial Narrow',system-ui,sans-serif;
+  --f-body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E151B;--surface:#16202A;--surface2:#1F2C38;--ink:#E4EBF1;--muted:#93A5B4;--line:#2B3A48;
+    --accent:#6BC0E3;--accent-ink:#08222D;--accent-soft:#183544;
+    --good:#4CC38A;--good-ink:#7ED8AC;--good-soft:#173528;
+    --warn:#E8A33D;--warn-ink:#F1C170;--warn-soft:#3A2E14;
+    --bad:#F0766C;--bad-ink:#F7A199;--bad-soft:#3C1F1D;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E151B;--surface:#16202A;--surface2:#1F2C38;--ink:#E4EBF1;--muted:#93A5B4;--line:#2B3A48;
+  --accent:#6BC0E3;--accent-ink:#08222D;--accent-soft:#183544;
+  --good:#4CC38A;--good-ink:#7ED8AC;--good-soft:#173528;
+  --warn:#E8A33D;--warn-ink:#F1C170;--warn-soft:#3A2E14;
+  --bad:#F0766C;--bad-ink:#F7A199;--bad-soft:#3C1F1D;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--surface);z-index:30}
+h1,h2,h3{font-family:var(--f-display);font-weight:600;margin:0;text-wrap:balance;letter-spacing:.005em}
+h1{font-size:26px;line-height:1.15}
+h1:focus{outline:none}
+h2{font-size:19px;line-height:1.2}
+h3{font-size:16px}
+p{margin:0}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+.top-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:10px;padding-bottom:4px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.mark{flex:none}
+.mark .m1{fill:var(--accent)}
+.mark .m2{fill:var(--ink)}
+.brand-name{font-family:var(--f-display);font-weight:600;font-size:17px;line-height:1.15}
+.brand-sub{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand>div{min-width:0}
+.live{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:4px 8px;flex:none}
+.live-num{font-family:var(--f-mono);font-size:26px;font-weight:500;line-height:1}
+.live-max{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;color:var(--muted);background:var(--surface2);white-space:nowrap}
+.chip::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.chip.good{color:var(--good-ink);background:var(--good-soft)}
+.chip.warn{color:var(--warn-ink);background:var(--warn-soft)}
+.chip.bad{color:var(--bad-ink);background:var(--bad-soft)}
+.steps{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.steps::-webkit-scrollbar{display:none}
+.step{appearance:none;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);font-weight:500;padding:9px 12px;display:flex;align-items:center;gap:8px;white-space:nowrap;cursor:pointer}
+.step-n{font-family:var(--f-mono);font-size:12px;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:var(--surface2);color:var(--muted)}
+.step[aria-current="step"]{color:var(--ink);border-bottom-color:var(--accent)}
+.step[aria-current="step"] .step-n{background:var(--accent);color:var(--accent-ink)}
+
+/* page */
+.page{padding-top:18px;padding-bottom:56px}
+.bar-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;margin-bottom:14px;font-size:13.5px;color:var(--muted)}
+.bar-row .btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{appearance:none;cursor:pointer;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:8px 14px;font-weight:500;min-height:38px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.small{padding:5px 10px;min-height:30px;font-size:13px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:20px}
+.view-head{display:grid;gap:6px;margin-bottom:18px}
+.lead{color:var(--muted);max-width:66ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:16px 20px}
+.label{display:block;font-weight:600;font-size:13.5px;margin-bottom:4px}
+.hint{font-size:12.5px;color:var(--muted);margin-top:4px;max-width:62ch}
+input[type="text"],input[type="number"],select{width:100%;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:9px 10px;min-height:40px}
+input[type="number"]{font-family:var(--f-mono);padding-right:62px}
+.inp{position:relative}
+.unit{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-family:var(--f-mono);font-size:12px;color:var(--muted);pointer-events:none}
+.sub{margin:22px 0 10px;padding-top:16px;border-top:1px solid var(--line)}
+.sub:first-child{margin-top:0;padding-top:0;border-top:0}
+.sub h2{margin-bottom:2px}
+.callout{margin-top:20px;padding:12px 14px;border-radius:6px;background:var(--accent-soft);font-size:14px}
+.nav{display:flex;justify-content:space-between;gap:12px;margin-top:24px;flex-wrap:wrap}
+.progress{font-family:var(--f-mono);font-size:12.5px;color:var(--muted)}
+.note{margin-top:12px;font-size:13px;color:var(--warn-ink);background:var(--warn-soft);padding:8px 12px;border-radius:6px}
+
+/* tables, pills */
+.tscroll{overflow-x:auto}
+.tbl{width:100%;min-width:520px;border-collapse:collapse;font-size:14px}
+.tbl th{text-align:left;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:8px 10px}
+.tbl td{padding:10px;border-top:1px solid var(--line);vertical-align:top}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.pill{display:inline-block;padding:1px 9px;border-radius:4px;font-size:12px;font-weight:600;background:var(--surface2);color:var(--muted)}
+.pill.good{background:var(--good-soft);color:var(--good-ink)}
+.pill.warn{background:var(--warn-soft);color:var(--warn-ink)}
+.pill.bad{background:var(--bad-soft);color:var(--bad-ink)}
+
+/* questions */
+.q{border:0;padding:0;margin:0 0 20px;min-width:0}
+.q legend{font-weight:600;padding:0;margin-bottom:8px}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:6px}
+.opt{display:flex;gap:9px;align-items:flex-start;padding:9px 11px;border:1px solid var(--line);border-radius:6px;cursor:pointer;background:var(--surface);font-size:14px;line-height:1.35}
+.opt input{margin-top:2px;accent-color:var(--accent);flex:none}
+.opt:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+
+/* documents */
+.doc{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 18px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.doc-name{font-weight:500}
+.tag{display:inline-block;margin-left:6px;padding:0 7px;border-radius:4px;font-size:11.5px;font-weight:600;background:var(--surface2);color:var(--muted);vertical-align:1px}
+.tag.esencial{background:var(--accent-soft);color:var(--accent)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg label{position:relative;display:block}
+.seg input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
+.seg span{display:block;padding:7px 12px;font-size:13px;font-weight:500;background:var(--surface);cursor:pointer;white-space:nowrap}
+.seg label+label span{border-left:1px solid var(--line)}
+.seg input:focus-visible+span{outline:2px solid var(--accent);outline-offset:-2px}
+.seg input[value="si"]:checked+span{background:var(--good-soft);color:var(--good-ink);box-shadow:inset 0 0 0 2px var(--good)}
+.seg input[value="tramite"]:checked+span{background:var(--warn-soft);color:var(--warn-ink);box-shadow:inset 0 0 0 2px var(--warn)}
+.seg input[value="no"]:checked+span{background:var(--bad-soft);color:var(--bad-ink);box-shadow:inset 0 0 0 2px var(--bad)}
+
+/* results */
+.verdict{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);gap:24px;align-items:center}
+.gauge{width:100%;max-width:300px;height:auto;display:block;margin:0 auto}
+.gauge .track{stroke:var(--surface2)}
+.gauge .tickm{stroke:var(--ink);opacity:.55}
+.gauge .arc.good{stroke:var(--good)}
+.gauge .arc.warn{stroke:var(--warn)}
+.gauge .arc.bad{stroke:var(--bad)}
+.gauge text{fill:var(--ink)}
+.gauge .gnum{font-family:var(--f-mono);font-size:40px;font-weight:500}
+.gauge .gsub{font-family:var(--f-mono);font-size:11px;fill:var(--muted)}
+.verdict-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.verdict-title h1{font-size:30px}
+.legend{font-size:12.5px;color:var(--muted);margin-top:10px}
+.alerts{display:grid;gap:8px;margin-top:16px}
+.alert{display:flex;gap:10px;align-items:baseline;padding:10px 12px;border-radius:6px;font-size:14px;background:var(--warn-soft)}
+.alert.bad{background:var(--bad-soft)}
+.alert b{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--warn-ink);flex:none}
+.alert.bad b{color:var(--bad-ink)}
+.section{margin-top:30px}
+.section>h2{margin-bottom:12px}
+.area{margin-bottom:14px}
+.area-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:5px}
+.area-n small{margin-left:8px;color:var(--muted);font-size:12.5px}
+.area-s{font-family:var(--f-mono);font-size:20px;font-weight:500}
+.area-s.good{color:var(--good-ink)}.area-s.warn{color:var(--warn-ink)}.area-s.bad{color:var(--bad-ink)}
+.bar{height:10px;background:var(--surface2);border-radius:5px;overflow:hidden}
+.bar i{display:block;height:100%;transition:width .4s ease}
+.bar i.good{background:var(--good)}.bar i.warn{background:var(--warn)}.bar i.bad{background:var(--bad)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.stat{background:var(--surface);padding:12px 14px;min-width:0}
+.stat-l{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.stat-v{font-family:var(--f-mono);font-size:22px;font-weight:500;line-height:1.3;font-variant-numeric:tabular-nums}
+.stat-v.good{color:var(--good-ink)}.stat-v.bad{color:var(--bad-ink)}
+.stat-s{font-size:12px;color:var(--muted)}
+.cap{font-size:12.5px;color:var(--muted);margin:16px 0 6px}
+.chart{display:block;width:100%;min-width:460px;height:auto}
+.chart .grid{stroke:var(--line)}
+.chart .ax0{stroke:var(--muted);stroke-width:1.2}
+.chart .pos{fill:var(--good)}
+.chart .neg{fill:var(--bad)}
+.chart text{font-family:var(--f-mono);font-size:11px;fill:var(--muted)}
+.chart .val{fill:var(--ink)}
+.plan{list-style:none;margin:0;padding:0}
+.plan-item{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;padding:14px 0;border-top:1px solid var(--line)}
+.plan-item:first-child{border-top:0}
+.rank{font-family:var(--f-mono);font-size:13px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink)}
+.plan-top{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+.gain{font-family:var(--f-mono);font-size:13px;color:var(--good-ink);margin-left:auto}
+.plan-detail{font-size:13.5px;color:var(--muted);margin-top:2px}
+.plan-fix{margin-top:6px}
+.plan-list{margin:6px 0 0;padding-left:18px;font-size:13.5px;color:var(--muted)}
+.proj{margin-top:14px;padding:12px 14px;border-radius:6px;background:var(--accent-soft)}
+.copybox{width:100%;min-height:150px;margin-top:12px;font-family:var(--f-mono);font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px}
+.foot{margin-top:28px;font-size:12.5px;color:var(--muted);max-width:70ch}
+
+@media (max-width:700px){
+  .verdict{grid-template-columns:minmax(0,1fr)}
+  .doc{grid-template-columns:minmax(0,1fr)}
+  h1{font-size:23px}
+  .verdict-title h1{font-size:26px}
+  .panel{padding:16px}
+}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-row">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 28 28" width="28" height="28" aria-hidden="true"><rect class="m1" x="2" y="15" width="6" height="11"/><rect class="m1" x="11" y="9" width="6" height="17"/><rect class="m2" x="20" y="2" width="6" height="24"/></svg>
+      <div>
+        <div class="brand-name">Evaluador de inversión industrial</div>
+        <div class="brand-sub" id="companyLabel">Sin nombre</div>
+      </div>
+    </div>
+    <div class="live">
+      <span class="live-num" id="liveNum">—</span><span class="live-max">/100</span>
+      <span class="chip" id="liveChip">Sin datos</span>
+    </div>
+  </div>
+  <div class="wrap"><nav class="steps" id="steps" aria-label="Pasos de la evaluación"></nav></div>
+</header>
+
+<main class="wrap page">
+  <div class="bar-row" id="bar"></div>
+  <section id="view" aria-live="off"></section>
+  <p class="foot">Herramienta de apoyo para filtrar inversiones. Las referencias por sector son orientativas y los resultados dependen de la calidad de los datos ingresados. No reemplaza el análisis de un asesor financiero ni la revisión de un abogado.</p>
+</main>
+
+<script>
+(function(){
+'use strict';
+
+/*CORE-START*/
+const Core=(function(){
+  const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+  const lin=(v,bad,good)=>(v==null||!isFinite(v))?null:clamp((v-bad)/(good-bad)*100,0,100);
+  const num=v=>{if(v===''||v==null)return null;const n=Number(v);return isFinite(n)?n:null;};
+  const div=(a,b)=>(a==null||b==null||b===0)?null:a/b;
+  const pctOf=(a,b)=>{const d=div(a,b);return d==null?null:d*100;};
+  function dec(n,d){
+    if(n==null||!isFinite(n))return '—';
+    let neg=n<0;const t=Math.abs(n).toFixed(d);
+    if(Number(t)===0)neg=false;
+    const p=t.split('.');
+    const g=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+    return (neg?'−':'')+g+(p[1]?','+p[1]:'');
+  }
+  const money=n=>n==null?'—':dec(n,0)+' M';
+
+  const AREA_W={rent:30,fin:25,risk:25,docs:20};
+  const AREA_NAME={rent:'Rentabilidad de la inversión',fin:'Solidez de la empresa',risk:'Riesgo y mercado',docs:'Documentación'};
+  const T_OK=75,T_RISK=55;
+  const VERDICT={good:{chip:'Viable',title:'Viable'},warn:{chip:'Con riesgo',title:'Con riesgo'},bad:{chip:'No viable',title:'No viable'}};
+  const band=s=>s>=T_OK?'good':s>=T_RISK?'warn':'bad';
+
+  const SECTORS={
+    alimentos:{name:'Alimentos y bebidas',liq:[0.9,1.5],end:[75,50],roe:[4,15],roa:[2,8],ebitda:[4,12],
+      doc:['Registro o permiso sanitario INVIMA y concepto sanitario de la planta','Sin permisos sanitarios vigentes la empresa no puede vender sus productos.','esencial']},
+    textil:{name:'Textil y confección',liq:[1.0,1.6],end:[75,50],roe:[3,12],roa:[1,6],ebitda:[3,10],
+      doc:['Permiso de vertimientos y plan de manejo de residuos de los procesos textiles','El teñido y el acabado generan vertimientos que las autoridades revisan con frecuencia.','esencial']},
+    quimico:{name:'Químico y farmacéutico',liq:[1.0,1.6],end:[70,45],roe:[5,16],roa:[3,9],ebitda:[6,18],
+      doc:['Permisos de manejo de sustancias químicas y registros sanitarios según el producto (INVIMA, buenas prácticas de manufactura)','Una sustancia sin permiso puede detener la producción.','esencial']},
+    metal:{name:'Metalmecánico',liq:[1.0,1.5],end:[78,55],roe:[3,13],roa:[1.5,6],ebitda:[4,11],
+      doc:['Certificaciones de calidad (por ejemplo ISO 9001) y permisos de emisiones','Muchos compradores industriales las exigen para contratar.','recomendado']},
+    plasticos:{name:'Plásticos y empaques',liq:[0.9,1.4],end:[78,55],roe:[4,14],roa:[2,7],ebitda:[4,12],
+      doc:['Plan de manejo de residuos y permisos ambientales de la planta','Los residuos de la planta son una fuente frecuente de sanciones ambientales.','esencial']},
+    construccion:{name:'Construcción y materiales',liq:[0.9,1.4],end:[80,55],roe:[3,13],roa:[1.5,6],ebitda:[5,14],
+      doc:['Licencias de construcción o explotación y títulos mineros vigentes, si aplica','Una licencia vencida puede parar la operación.','esencial']},
+    papel:{name:'Papel y cartón',liq:[0.9,1.4],end:[78,55],roe:[3,12],roa:[1.5,6],ebitda:[5,13],
+      doc:['Permisos de vertimientos y emisiones atmosféricas','Es una operación que usa mucha agua y energía, y los permisos son críticos.','esencial']}
+  };
+  const SOC={
+    sas:{name:'S.A.S.',estatutos:'Estatutos vigentes y documento de constitución',acta:'Acta del máximo órgano social (asamblea o accionista único) que autoriza la operación',socios:'Libro de registro de accionistas actualizado'},
+    sa:{name:'S.A.',estatutos:'Estatutos vigentes y reformas',acta:'Acta de junta directiva o asamblea, según digan los estatutos, que autoriza la operación',socios:'Libro de registro de accionistas actualizado'},
+    ltda:{name:'Ltda.',estatutos:'Escritura pública de constitución y reformas',acta:'Acta de junta de socios que autoriza la operación',socios:'Composición de cuotas sociales por socio'},
+    comandita:{name:'En comandita (S. en C. o S.C.A.)',estatutos:'Escritura pública de constitución y reformas',acta:'Acta de socios que autoriza la operación',socios:'Lista de socios gestores y comanditarios con sus aportes'},
+    sucursal:{name:'Sucursal de sociedad extranjera',estatutos:'Documentos de la casa matriz (existencia y estatutos), apostillados o legalizados',acta:'Poder o decisión de la casa matriz que autoriza al representante de la sucursal',socios:'Estructura de propiedad de la casa matriz'}
+  };
+  const TAMANOS=[{id:'micro',name:'Micro'},{id:'pequena',name:'Pequeña'},{id:'mediana',name:'Mediana'},{id:'grande',name:'Grande'}];
+  const TIPOS={
+    participacion:{name:'Compra de participación (acciones o cuotas)',doc:['Términos de la compra y pacto de accionistas','Fija el precio, los derechos y las condiciones de salida.']},
+    prestamo:{name:'Préstamo o crédito a la empresa',doc:['Pagaré o contrato de mutuo, con las garantías ofrecidas','Define plazo, tasa y respaldo si la empresa no paga.']},
+    bonos:{name:'Bonos o títulos de deuda',doc:['Términos de la emisión y calificación del título, si existe','Muestra plazo, tasa, garantías y quién responde por el pago.']},
+    capital:{name:'Aporte de capital a la empresa',doc:['Términos del aporte y acuerdo entre socios','Fija qué porcentaje recibes y qué derechos tienes.']}
+  };
+
+  const Q=[
+    {id:'m1',group:'Mercado',text:'¿Qué parte de las ventas depende de sus 3 clientes más grandes?',
+      opts:['Menos del 30%','Entre 30% y 50%','Entre 50% y 70%','Más del 70%'],
+      fix:'Pedir contratos de suministro firmados con los clientes principales o un plan para ampliar la base de clientes.'},
+    {id:'m2',group:'Mercado',text:'¿Cómo han evolucionado las ventas en los últimos 3 años?',
+      opts:['Crecen más de 5% al año','Crecen entre 0% y 5% al año','Se mantienen planas o con caídas leves','Caen de forma sostenida'],
+      fix:'Pedir el análisis de por qué las ventas no crecen y un plan comercial con metas que se puedan verificar.'},
+    {id:'m3',group:'Mercado',text:'¿Qué presión de competencia o importaciones enfrenta el producto?',
+      opts:['Baja: nicho o marca consolidada','Moderada','Alta: compite sobre todo por precio','Muy alta: llegan importaciones más baratas'],
+      fix:'Revisar la ventaja competitiva de la empresa (costos, calidad, marca) y pedir un estudio de mercado actualizado.'},
+    {id:'o1',group:'Operación',text:'¿Cuánto de la capacidad instalada de la planta se usa hoy?',
+      opts:['Más del 80%','Entre 60% y 80%','Entre 40% y 60%','Menos del 40%'],
+      fix:'Pedir un plan para subir el uso de la planta antes de financiar más capacidad.'},
+    {id:'o2',group:'Operación',text:'¿Qué tan dependiente es de un solo proveedor o de materia prima importada?',
+      opts:['Varios proveedores y materia prima local','Varios proveedores, parte importada','Un proveedor principal','Un solo proveedor o toda la materia prima importada'],
+      fix:'Pedir acuerdos con proveedores alternos y una política de inventario de seguridad.'},
+    {id:'o3',group:'Operación',text:'¿Qué exposición tiene a la tasa de cambio?',
+      opts:['Ingresos y costos en la misma moneda','Exposición baja o cubierta con instrumentos','Exposición media y sin cobertura','Exposición alta y sin cobertura'],
+      fix:'Pedir una política de cobertura cambiaria (forwards u otros instrumentos) o cláusulas que ajusten precios por tasa de cambio.'},
+    {id:'l1',group:'Legal y gobierno',text:'¿Cómo está la empresa frente a licencias y normas ambientales?',
+      opts:['Al día y con certificaciones','Al día, sin certificaciones','Con trámites pendientes','Con sanciones o procesos abiertos'],
+      fix:'Exigir el cierre de trámites o sanciones ambientales antes de invertir, con soportes de la autoridad ambiental.',
+      crit:'La empresa tiene sanciones o procesos ambientales abiertos.'},
+    {id:'l2',group:'Legal y gobierno',text:'¿Qué calidad tiene la información financiera?',
+      opts:['Auditada por revisor fiscal, sin salvedades','Certificada por contador público','Ordenada pero sin certificar','Incompleta o desordenada'],
+      fix:'Pedir estados financieros certificados o dictaminados. Sin información confiable, esta evaluación es incierta.',
+      crit:'La información financiera está incompleta o desordenada, así que los resultados de esta evaluación son poco confiables.'},
+    {id:'l3',group:'Legal y gobierno',text:'¿Tiene litigios, procesos o contingencias?',
+      opts:['Ninguno','Menores y ya provisionados','Relevantes y sin provisionar','Graves o que ponen en riesgo la operación'],
+      fix:'Pedir el listado de procesos con su cuantía y probabilidad, y revisarlo con un abogado.',
+      crit:'Hay litigios graves que podrían poner en riesgo la operación.'},
+    {id:'l4',group:'Legal y gobierno',text:'¿Qué experiencia y estabilidad tiene la administración?',
+      opts:['Más de 10 años en el sector y equipo estable','Entre 5 y 10 años','Entre 2 y 5 años','Menos de 2 años o alta rotación'],
+      fix:'Pedir las hojas de vida del equipo directivo y un plan de continuidad.'},
+    {id:'i1',group:'Estructura de la inversión',text:'¿Está definida la forma de recuperar la inversión (salida)?',
+      opts:['Sí, por contrato y con garantías','Sí, por contrato y sin garantías','Hay un acuerdo informal','No está definida'],
+      fix:'Definir por escrito la forma de salida (recompra, plazo de pago o venta) y pedir garantías.',
+      crit:'No está definida la forma de recuperar la inversión.'},
+    {id:'i2',group:'Estructura de la inversión',text:'¿Qué protección y control tendrá el inversionista?',
+      opts:['Voz en la junta y derechos pactados por escrito','Derecho a información periódica','Solo informes ocasionales','Ninguno'],
+      fix:'Negociar derechos de información, voto en decisiones clave y reportes periódicos.'}
+  ];
+  const QSCORE=[100,66,33,0];
+
+  const FIX={
+    liq:'Renegociar plazos con proveedores, pasar deuda de corto a largo plazo o reducir inventarios de baja rotación.',
+    end:'Pedir capitalización de utilidades, frenar nuevas deudas o reestructurar los pasivos a mayor plazo.',
+    roe:'Subir la utilidad con control de costos y mejores precios de venta, o aumentar la rotación de los activos.',
+    roa:'Usar mejor los activos: vender los que no producen y elevar el uso de la planta.',
+    ebitda:'Revisar los costos de producción y los gastos fijos, y renegociar precios con proveedores.',
+    tir:'Negociar un precio de entrada menor, reducir el monto o revisar con la empresa si los flujos proyectados son realistas.',
+    vpn:'Reducir el monto invertido o pactar una mayor participación en las utilidades.',
+    pb:'Pactar pagos parciales anticipados o una estructura por fases para recuperar el dinero antes.'
+  };
+
+  function buildDocs(p){
+    const soc=SOC[p.sociedad]||SOC.sas, sec=SECTORS[p.sector]||SECTORS.alimentos, tam=p.tamano, tipo=TIPOS[p.tipo]||TIPOS.participacion;
+    const isEquity=(p.tipo==='participacion'||p.tipo==='capital');
+    const D=[];
+    const add=(id,group,name,why,level)=>D.push({id,group,name,why,level});
+    add('cert','Sociedad','Certificado de existencia y representación legal','Lo expide la Cámara de Comercio. Pide uno reciente.','esencial');
+    add('rut','Sociedad','RUT actualizado','Confirma la identidad tributaria y la actividad económica.','esencial');
+    add('estatutos','Sociedad',soc.estatutos,'Define quién manda y cómo se toman las decisiones.','esencial');
+    add('acta','Sociedad',soc.acta,'Sin esta autorización la empresa no puede comprometerse con la operación.','esencial');
+    add('socios','Sociedad',soc.socios,'Muestra quién controla la empresa y con cuánto.',isEquity?'esencial':'recomendado');
+    add('ss','Sociedad','Certificación de pagos de seguridad social y parafiscales al día','Una nómina al día reduce el riesgo de embargos y sanciones.','recomendado');
+    if(tam==='micro'||tam==='pequena'){
+      add('ef','Finanzas','Estados financieros de los últimos 2 años, certificados por contador público','Son la base de todos los indicadores.','esencial');
+    } else {
+      add('ef','Finanzas','Estados financieros de los últimos 3 años, dictaminados por revisor fiscal (cuando aplique)','Son la base de los indicadores y el dictamen da confianza en las cifras.','esencial');
+    }
+    add('renta','Finanzas','Declaraciones de renta de los últimos 2 años','Permiten cruzar las cifras con lo declarado ante la DIAN.','esencial');
+    add('banc','Finanzas','Referencias bancarias y comerciales','Muestran cómo paga la empresa a sus acreedores.','recomendado');
+    if(tam==='mediana'||tam==='grande'){
+      add('gestion','Finanzas','Informe de gestión anual de la administración','Explica los resultados y los planes de la empresa.','recomendado');
+      add('laft','Finanzas','Política de prevención de lavado de activos (SAGRILAFT cuando aplique)','Muestra que la empresa controla el origen de sus recursos.','recomendado');
+    }
+    if(tam==='grande') add('gobierno','Finanzas','Código de buen gobierno corporativo','Define cómo se protege a los inversionistas minoritarios.','recomendado');
+    add('flujo','Inversión','Flujo de caja proyectado con sus supuestos','Sirve para revisar los flujos que ingresaste en el paso Inversión.','esencial');
+    add('termino','Inversión',tipo.doc[0],tipo.doc[1],'esencial');
+    add('mercado','Inversión','Estudio de mercado o análisis del sector','Respalda las ventas que la empresa proyecta.','recomendado');
+    add('destino','Inversión','Presupuesto o cotizaciones del proyecto que se financia','Muestra en qué se usará el dinero.','recomendado');
+    add('sector','Operación y permisos',sec.doc[0],sec.doc[1],sec.doc[2]);
+    add('seguros','Operación y permisos','Pólizas de seguros de planta, inventarios y responsabilidad civil','Protegen los activos que respaldan la inversión.','recomendado');
+    return D;
+  }
+
+  function npv(rate,c){return c.reduce((a,x,i)=>a+x/Math.pow(1+rate,i),0);}
+  function irr(c){
+    let lo=-0.95,hi=10,flo=npv(lo,c),fhi=npv(hi,c);
+    if(!(flo*fhi<0))return null;
+    for(let i=0;i<200;i++){const m=(lo+hi)/2,fm=npv(m,c);if(flo*fm<=0){hi=m;fhi=fm;}else{lo=m;flo=fm;}}
+    return (lo+hi)/2;
+  }
+  function payback(I,cf){
+    let cum=0;
+    for(let i=0;i<cf.length;i++){const prev=cum;cum+=cf[i];if(cum>=I)return i+(cf[i]>0?(I-prev)/cf[i]:0);}
+    return null;
+  }
+
+  function compute(s){
+    const sec=SECTORS[s.profile.sector]||SECTORS.alimentos;
+    const f={};['ac','inv','at','pc','pt','ventas','un','ebitda'].forEach(k=>{f[k]=num(s.fin[k]);});
+    const I=num(s.inv.monto), rr=num(s.inv.tasa), rate=rr==null?null:rr/100;
+    const fl=s.inv.f.map(num), sal=num(s.inv.salida);
+    const hasData=Object.values(f).some(v=>v!=null)||I!=null||rr!=null||fl.some(v=>v!=null)||Object.values(s.q).some(v=>v!=null)||Object.values(s.d).some(v=>v!=null);
+    const incomplete=[];
+    if(Object.values(f).some(v=>v==null))incomplete.push('Faltan datos financieros de la empresa (paso Finanzas).');
+    const invOk=(I!=null&&I>0&&rate!=null&&rate>-0.99&&fl.some(v=>v!=null&&v!==0));
+    if(!invOk)incomplete.push('Falta el monto, la tasa de descuento o los flujos de la inversión (paso Inversión).');
+    const unanswered=Q.filter(q=>s.q[q.id]==null).length;
+    if(unanswered)incomplete.push('Faltan '+unanswered+' respuestas en las preguntas. Las que faltan cuentan como 0.');
+    const docs=buildDocs(s.profile);
+    const unmarked=docs.filter(d=>s.d[d.id]==null).length;
+    if(unmarked)incomplete.push('Faltan por marcar '+unmarked+' documentos. Los que faltan cuentan como no entregados.');
+
+    // --- inversión
+    const cf=fl.map(v=>v==null?0:v); cf[4]+=(sal||0);
+    let vpn=null,tir=null,pb=null,idx=null,cum=null;
+    if(invOk){
+      vpn=-I+cf.reduce((a,c,i)=>a+c/Math.pow(1+rate,i+1),0);
+      idx=vpn/I; tir=irr([-I].concat(cf)); pb=payback(I,cf);
+      cum=[-I]; cf.forEach(x=>cum.push(cum[cum.length-1]+x));
+    }
+    const sTir=(tir==null||rate==null)?null:lin((tir-rate)*100,-3,8);
+    const sIdx=idx==null?null:lin(idx,-0.2,0.4);
+    const sPb=invOk?(pb==null?0:lin(pb,5,2)):null;
+    const rentItems=[
+      {key:'tir',label:'TIR frente a la tasa de descuento',score:sTir,share:.4,detail:tir==null?'No se pudo calcular la TIR con estos flujos.':'TIR de '+dec(tir*100,1)+'% frente a una tasa de descuento de '+dec(rate*100,1)+'%.'},
+      {key:'vpn',label:'VPN sobre el monto invertido',score:sIdx,share:.3,detail:vpn==null?'Sin datos suficientes.':'VPN de '+money(vpn)+' sobre '+money(I)+' invertidos (índice '+dec(idx,2)+').'},
+      {key:'pb',label:'Tiempo de recuperación',score:sPb,share:.3,detail:!invOk?'Sin datos suficientes.':(pb==null?'El dinero no se recupera dentro de los 5 años.':'El dinero se recupera en '+dec(pb,1)+' años.')}
+    ];
+    const sRent=rentItems.reduce((t,x)=>t+(x.score||0)*x.share,0);
+
+    // --- finanzas de la empresa
+    const liq=div(f.ac,f.pc);
+    const acid=(f.ac==null||f.inv==null)?null:div(f.ac-f.inv,f.pc);
+    const pat=(f.at==null||f.pt==null)?null:f.at-f.pt;
+    const endP=pctOf(f.pt,f.at);
+    const roeP=(pat!=null&&pat>0)?pctOf(f.un,pat):null;
+    const roaP=pctOf(f.un,f.at);
+    const ebP=pctOf(f.ebitda,f.ventas);
+    const acidRef=[Math.max(sec.liq[0]-0.4,0.3),Math.max(sec.liq[1]-0.5,0.6)];
+    const sLiqC=lin(liq,sec.liq[0],sec.liq[1]), sAcid=lin(acid,acidRef[0],acidRef[1]);
+    const sLiq=(sLiqC==null&&sAcid==null)?null:0.6*(sLiqC||0)+0.4*(sAcid||0);
+    const sEnd=lin(endP,sec.end[0],sec.end[1]);
+    const sRoe=lin(roeP,sec.roe[0],sec.roe[1]);
+    const sRoa=lin(roaP,sec.roa[0],sec.roa[1]);
+    const sEb=lin(ebP,sec.ebitda[0],sec.ebitda[1]);
+    const inds=[
+      {key:'liq',label:'Liquidez corriente',val:liq==null?'—':dec(liq,2),ref:'Bien desde '+dec(sec.liq[1],2),score:sLiqC},
+      {key:'acid',label:'Prueba ácida',val:acid==null?'—':dec(acid,2),ref:'Bien desde '+dec(acidRef[1],2),score:sAcid},
+      {key:'end',label:'Endeudamiento',val:endP==null?'—':dec(endP,1)+'%',ref:'Bien hasta '+dec(sec.end[1],0)+'%',score:sEnd},
+      {key:'roe',label:'ROE (rentabilidad del patrimonio)',val:(pat!=null&&pat<=0)?'No aplica':(roeP==null?'—':dec(roeP,1)+'%'),ref:'Bien desde '+dec(sec.roe[1],0)+'%',score:(pat!=null&&pat<=0)?0:sRoe},
+      {key:'roa',label:'ROA (rentabilidad de los activos)',val:roaP==null?'—':dec(roaP,1)+'%',ref:'Bien desde '+dec(sec.roa[1],0)+'%',score:sRoa},
+      {key:'ebitda',label:'Margen EBITDA',val:ebP==null?'—':dec(ebP,1)+'%',ref:'Bien desde '+dec(sec.ebitda[1],0)+'%',score:sEb}
+    ];
+    const finItems=[
+      {key:'liq',label:'Liquidez',score:sLiq,share:.25,detail:'Liquidez corriente '+dec(liq,2)+' y prueba ácida '+dec(acid,2)+'. El sector pide desde '+dec(sec.liq[1],2)+' y '+dec(acidRef[1],2)+'.'},
+      {key:'end',label:'Endeudamiento',score:sEnd,share:.25,detail:'Endeudamiento de '+dec(endP,1)+'%. El sector pide hasta '+dec(sec.end[1],0)+'%.'},
+      {key:'roe',label:'Rentabilidad del patrimonio (ROE)',score:(pat!=null&&pat<=0)?0:sRoe,share:.2,detail:(pat!=null&&pat<=0)?'El patrimonio es cero o negativo.':'ROE de '+dec(roeP,1)+'%. El sector pide desde '+dec(sec.roe[1],0)+'%.'},
+      {key:'ebitda',label:'Margen EBITDA',score:sEb,share:.2,detail:'Margen EBITDA de '+dec(ebP,1)+'%. El sector pide desde '+dec(sec.ebitda[1],0)+'%.'},
+      {key:'roa',label:'Rentabilidad de los activos (ROA)',score:sRoa,share:.1,detail:'ROA de '+dec(roaP,1)+'%. El sector pide desde '+dec(sec.roa[1],0)+'%.'}
+    ];
+    const sFin=finItems.reduce((t,x)=>t+(x.score||0)*x.share,0);
+
+    // --- riesgo y mercado
+    const qs=Q.map(q=>{const a=s.q[q.id];return {q:q,a:a,sc:a==null?null:QSCORE[a]};});
+    const sRisk=qs.reduce((t,x)=>t+(x.sc||0),0)/Q.length;
+
+    // --- documentación
+    const W={esencial:2,recomendado:1};
+    let tot=0,got=0;const missE=[],missR=[];
+    docs.forEach(d=>{
+      const st=s.d[d.id],w=W[d.level],v=st==='si'?1:st==='tramite'?0.5:0;
+      tot+=w;got+=w*v;
+      if(v<1)(d.level==='esencial'?missE:missR).push({d:d,st:st,gap:w*(1-v)});
+    });
+    const sDocs=tot?got/tot*100:0;
+
+    const areas=[
+      {key:'rent',name:AREA_NAME.rent,weight:AREA_W.rent,score:sRent},
+      {key:'fin',name:AREA_NAME.fin,weight:AREA_W.fin,score:sFin},
+      {key:'risk',name:AREA_NAME.risk,weight:AREA_W.risk,score:sRisk},
+      {key:'docs',name:AREA_NAME.docs,weight:AREA_W.docs,score:sDocs}
+    ];
+    const total=areas.reduce((t,a)=>t+a.score*a.weight/100,0);
+
+    // --- alertas
+    const alerts=[];
+    if(vpn!=null&&vpn<0)alerts.push({sev:'bad',text:'El VPN es negativo: con la tasa de descuento elegida, la inversión destruye valor.'});
+    if(pat!=null&&pat<=0)alerts.push({sev:'bad',text:'El patrimonio de la empresa es cero o negativo.'});
+    qs.forEach(x=>{if(x.a===3&&x.q.crit)alerts.push({sev:'bad',text:x.q.crit});});
+    if(liq!=null&&liq<1)alerts.push({sev:'warn',text:'La liquidez corriente es de '+dec(liq,2)+': la empresa debe más a corto plazo de lo que tiene disponible.'});
+    if(endP!=null&&endP>sec.end[0])alerts.push({sev:'warn',text:'El endeudamiento de '+dec(endP,1)+'% supera el nivel de alerta del sector ('+dec(sec.end[0],0)+'%).'});
+    if(invOk&&pb==null)alerts.push({sev:'warn',text:'La inversión no se recupera dentro de los 5 años proyectados.'});
+    if(missE.length)alerts.push({sev:'warn',text:'Faltan o están en trámite '+missE.length+' documentos esenciales.'});
+
+    let verdict=band(total),capped=false;
+    if(verdict==='good'&&alerts.some(a=>a.sev==='bad')){verdict='warn';capped=true;}
+
+    // --- plan de mejora
+    const plan=[];
+    rentItems.forEach(it=>plan.push({area:'rent',label:it.label,gain:AREA_W.rent*it.share*(1-(it.score||0)/100),detail:it.detail,fix:FIX[it.key]}));
+    finItems.forEach(it=>plan.push({area:'fin',label:it.label,gain:AREA_W.fin*it.share*(1-(it.score||0)/100),detail:it.detail,fix:FIX[it.key]}));
+    qs.forEach(x=>plan.push({area:'risk',label:x.q.text.replace(/^¿/,'').replace(/\?$/,''),gain:AREA_W.risk/Q.length*(1-(x.sc||0)/100),detail:x.a==null?'Sin responder.':'Respuesta actual: '+x.q.opts[x.a]+'.',fix:x.q.fix}));
+    const gE=missE.reduce((t,x)=>t+x.gap,0), gR=missR.reduce((t,x)=>t+x.gap,0);
+    if(missE.length)plan.push({area:'docs',label:'Completar documentos esenciales ('+missE.length+')',gain:AREA_W.docs*gE/tot,detail:'Pendientes o en trámite.',fix:'Pedir estos documentos a la empresa antes de decidir. Para los que están en trámite, acordar una fecha de entrega.',list:missE.map(x=>x.d.name+(x.st==='tramite'?' (en trámite)':''))});
+    if(missR.length)plan.push({area:'docs',label:'Completar documentos recomendados ('+missR.length+')',gain:AREA_W.docs*gR/tot,detail:'Pendientes o en trámite.',fix:'Pedirlos si la inversión es grande o si hay dudas en otras áreas.',list:missR.map(x=>x.d.name+(x.st==='tramite'?' (en trámite)':''))});
+    const planSorted=plan.filter(p=>p.gain>=0.3).sort((a,b)=>b.gain-a.gain);
+    const top3=planSorted.slice(0,3).reduce((t,p)=>t+p.gain,0);
+
+    return {hasData:hasData,incomplete:incomplete,total:total,areas:areas,verdict:verdict,capped:capped,alerts:alerts,inds:inds,
+      rent:{ok:invOk,I:I,rate:rate,vpn:vpn,tir:tir,pb:pb,idx:idx,cf:cf,cum:cum},
+      plan:planSorted,proj:Math.min(100,total+top3),docs:{list:docs,missE:missE,missR:missR},
+      warnings:dataWarnings(f)};
+  }
+  function dataWarnings(f){
+    const w=[];
+    if(f.ac!=null&&f.at!=null&&f.ac>f.at)w.push('El activo corriente no puede ser mayor que el activo total.');
+    if(f.inv!=null&&f.ac!=null&&f.inv>f.ac)w.push('Los inventarios no pueden ser mayores que el activo corriente.');
+    if(f.pc!=null&&f.pt!=null&&f.pc>f.pt)w.push('El pasivo corriente no puede ser mayor que el pasivo total.');
+    if(f.pt!=null&&f.at!=null&&f.pt>f.at)w.push('El pasivo es mayor que el activo: el patrimonio queda negativo.');
+    return w;
+  }
+
+  function exampleState(){
+    return {example:true,
+      profile:{empresa:'Industrias Ejemplo S.A.S.',sector:'plasticos',sociedad:'sas',tamano:'mediana',tipo:'participacion'},
+      fin:{ac:'4500',inv:'1800',at:'12500',pc:'3300',pt:'7400',ventas:'18000',un:'620',ebitda:'1900'},
+      inv:{monto:'2000',tasa:'15',f:['380','470','560','620','680'],salida:'1300'},
+      q:{m1:1,m2:1,m3:2,o1:1,o2:2,o3:2,l1:1,l2:1,l3:1,l4:0,i1:1,i2:2},
+      d:{cert:'si',rut:'si',estatutos:'si',acta:'tramite',socios:'si',ss:'si',ef:'si',renta:'si',banc:'no',gestion:'tramite',laft:'no',flujo:'tramite',termino:'no',mercado:'no',destino:'no',sector:'tramite',seguros:'si'}
+    };
+  }
+  function blankState(){
+    const q={};Q.forEach(x=>{q[x.id]=null;});
+    return {example:false,
+      profile:{empresa:'',sector:'alimentos',sociedad:'sas',tamano:'pequena',tipo:'participacion'},
+      fin:{ac:'',inv:'',at:'',pc:'',pt:'',ventas:'',un:'',ebitda:''},
+      inv:{monto:'',tasa:'',f:['','','','',''],salida:''},
+      q:q,d:{}
+    };
+  }
+  return {SECTORS:SECTORS,SOC:SOC,TAMANOS:TAMANOS,TIPOS:TIPOS,Q:Q,AREA_NAME:AREA_NAME,VERDICT:VERDICT,T_OK:T_OK,T_RISK:T_RISK,
+    band:band,dec:dec,money:money,buildDocs:buildDocs,compute:compute,exampleState:exampleState,blankState:blankState};
+})();
+/*CORE-END*/
+
+// ================= interfaz =================
+const $=s=>document.querySelector(s);
+const view=$('#view'),stepsEl=$('#steps'),barEl=$('#bar');
+const KEY='evaluador-inversion-v1';
+const STEPS=['Perfil','Finanzas','Inversión','Preguntas','Documentos','Resultado'];
+const {dec,money,band,SECTORS,SOC,TAMANOS,TIPOS,Q,AREA_NAME,VERDICT}=Core;
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function loadState(){
+  try{
+    const raw=localStorage.getItem(KEY);if(!raw)return null;
+    const s=JSON.parse(raw);
+    if(s&&s.profile&&s.fin&&s.inv&&Array.isArray(s.inv.f)&&s.inv.f.length===5&&s.q&&s.d)return s;
+  }catch(e){}
+  return null;
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
+let state=loadState()||Core.exampleState();
+let step=0;
+
+const getPath=p=>p.split('.').reduce((o,k)=>o==null?o:o[k],state);
+function setPath(p,v){const ks=p.split('.');let o=state;for(let i=0;i<ks.length-1;i++)o=o[ks[i]];o[ks[ks.length-1]]=v;}
+
+// ---------- piezas de formulario ----------
+function numField(path,label,unit,hint){
+  const v=getPath(path);
+  return '<div><label class="label" for="'+path+'">'+label+'</label><div class="inp"><input id="'+path+'" data-k="'+path+'" type="number" inputmode="decimal" step="any" value="'+esc(v)+'"><span class="unit">'+unit+'</span></div>'+(hint?'<div class="hint">'+hint+'</div>':'')+'</div>';
+}
+function selectField(path,label,options,hint){
+  const v=getPath(path);
+  const o=options.map(x=>'<option value="'+x[0]+'"'+(x[0]===v?' selected':'')+'>'+esc(x[1])+'</option>').join('');
+  return '<div><label class="label" for="'+path+'">'+label+'</label><select id="'+path+'" data-k="'+path+'">'+o+'</select>'+(hint?'<div class="hint">'+hint+'</div>':'')+'</div>';
+}
+
+// ---------- vistas ----------
+function viewProfile(){
+  const p=state.profile;
+  return '<div class="view-head"><h1 tabindex="-1">Perfil de la empresa</h1><p class="lead">Estas respuestas ajustan los documentos que se piden y las referencias con las que se compara a la empresa.</p></div>'+
+  '<div class="panel"><div class="grid">'+
+    '<div><label class="label" for="profile.empresa">Nombre de la empresa</label><input id="profile.empresa" data-k="profile.empresa" type="text" value="'+esc(p.empresa)+'" autocomplete="off"></div>'+
+    selectField('profile.sector','Sector industrial',Object.keys(SECTORS).map(k=>[k,SECTORS[k].name]),'Cada sector tiene niveles normales distintos de deuda y liquidez.')+
+    selectField('profile.sociedad','Tipo de sociedad',Object.keys(SOC).map(k=>[k,SOC[k].name]),'Cambia los documentos legales que se piden.')+
+    selectField('profile.tamano','Tamaño de la empresa',TAMANOS.map(t=>[t.id,t.name]),'Según sus activos o ingresos. Cambia qué tan exigente es la documentación financiera.')+
+    selectField('profile.tipo','Tipo de inversión',Object.keys(TIPOS).map(k=>[k,TIPOS[k].name]),'Define el documento principal de la operación.')+
+  '</div><div class="callout" id="profileSummary"></div></div>'+navHTML();
+}
+function viewFin(){
+  return '<div class="view-head"><h1 tabindex="-1">Finanzas de la empresa</h1><p class="lead">Toma las cifras del último balance y estado de resultados. Todo en millones de pesos (COP).</p></div>'+
+  '<div class="panel"><div class="sub"><h2>Balance general</h2></div><div class="grid">'+
+    numField('fin.ac','Activo corriente','M COP','Efectivo, cuentas por cobrar e inventarios.')+
+    numField('fin.inv','Inventarios','M COP','Ya incluidos en el activo corriente.')+
+    numField('fin.at','Activo total','M COP')+
+    numField('fin.pc','Pasivo corriente','M COP','Deudas que vencen en menos de un año.')+
+    numField('fin.pt','Pasivo total','M COP')+
+  '</div><div class="sub"><h2>Estado de resultados</h2></div><div class="grid">'+
+    numField('fin.ventas','Ventas del último año','M COP')+
+    numField('fin.un','Utilidad neta','M COP')+
+    numField('fin.ebitda','EBITDA','M COP','Utilidad antes de intereses, impuestos, depreciación y amortización.')+
+  '</div><div class="sub"><h2>Indicadores calculados</h2><p class="hint">Comparados con las referencias del sector elegido.</p></div><div id="finDerived"></div></div>'+navHTML();
+}
+function viewInv(){
+  let flows='';for(let i=0;i<5;i++)flows+=numField('inv.f.'+i,'Año '+(i+1),'M COP');
+  return '<div class="view-head"><h1 tabindex="-1">La inversión</h1><p class="lead">Aquí cuenta lo que tú recibirías (dividendos, intereses, pagos de capital), no lo que gana la empresa.</p></div>'+
+  '<div class="panel"><div class="grid">'+
+    numField('inv.monto','Monto que vas a invertir','M COP')+
+    numField('inv.tasa','Tasa de descuento','% anual','La rentabilidad mínima que exiges. Si no sabes cuál usar, parte de lo que te daría una alternativa de riesgo parecido.')+
+  '</div><div class="sub"><h2>Flujos que esperas recibir</h2><p class="hint">Un valor por año. Si la inversión dura menos de 5 años, deja los últimos en 0.</p></div><div class="grid">'+flows+'</div>'+
+  '<div class="sub"><h2>Valor de salida</h2></div><div class="grid">'+
+    numField('inv.salida','Lo que recibirías al final del año 5','M COP','Venta de la participación o devolución del capital. Déjalo en 0 si no aplica.')+
+  '</div><div class="sub"><h2>Resultado de la inversión</h2></div><div id="invDerived"></div></div>'+navHTML();
+}
+function viewQ(){
+  let html='<div class="view-head"><h1 tabindex="-1">Preguntas sobre riesgo y mercado</h1><p class="lead">Responde con lo que sepas hoy. Cada respuesta suma puntos al área de riesgo. <span class="progress" id="qProg"></span></p></div><div class="panel">';
+  let g=null;
+  Q.forEach(q=>{
+    if(q.group!==g){g=q.group;html+='<div class="sub"><h2>'+g+'</h2></div>';}
+    html+='<fieldset class="q"><legend>'+q.text+'</legend><div class="opts">'+q.opts.map((o,i)=>
+      '<label class="opt"><input type="radio" name="q_'+q.id+'" value="'+i+'" data-k="q.'+q.id+'" data-n="1"'+(state.q[q.id]===i?' checked':'')+'><span>'+o+'</span></label>').join('')+'</div></fieldset>';
+  });
+  return html+'</div>'+navHTML();
+}
+function viewDocs(){
+  const docs=Core.buildDocs(state.profile);
+  const p=state.profile;
+  let html='<div class="view-head"><h1 tabindex="-1">Documentos que debes pedir</h1><p class="lead">Lista para <b>'+esc(SOC[p.sociedad].name)+'</b>, empresa <b>'+esc(TAMANOS.find(t=>t.id===p.tamano).name.toLowerCase())+'</b> del sector <b>'+esc(SECTORS[p.sector].name.toLowerCase())+'</b>. Marca el estado de cada uno. <span class="progress" id="dProg"></span></p></div><div class="panel">';
+  let g=null;
+  docs.forEach(d=>{
+    if(d.group!==g){g=d.group;html+='<div class="sub"><h2>'+g+'</h2></div>';}
+    const st=state.d[d.id];
+    const opt=(v,l)=>'<label><input type="radio" name="d_'+d.id+'" value="'+v+'" data-k="d.'+d.id+'"'+(st===v?' checked':'')+'><span>'+l+'</span></label>';
+    html+='<div class="doc"><div><div class="doc-name">'+esc(d.name)+'<span class="tag '+d.level+'">'+(d.level==='esencial'?'Esencial':'Recomendado')+'</span></div><div class="hint">'+esc(d.why)+'</div></div>'+
+      '<div class="seg" role="radiogroup" aria-label="Estado: '+esc(d.name)+'">'+opt('si','Lo tengo')+opt('tramite','En trámite')+opt('no','Falta')+'</div></div>';
+  });
+  return html+'</div>'+navHTML();
+}
+
+function navHTML(){
+  const prev=step>0?'<button type="button" class="btn" data-go="'+(step-1)+'">Atrás</button>':'<span></span>';
+  const next=step<5?'<button type="button" class="btn primary" data-go="'+(step+1)+'">Siguiente: '+STEPS[step+1]+'</button>':'';
+  return '<div class="nav">'+prev+next+'</div>';
+}
+
+// ---------- resultado ----------
+function niceTicks(lo,hi,n){
+  const range=(hi-lo)||1,rough=range/n,mag=Math.pow(10,Math.floor(Math.log10(rough))),norm=rough/mag;
+  const step=(norm<1.5?1:norm<3?2:norm<7?5:10)*mag;
+  const a=Math.floor(lo/step)*step,b=Math.ceil(hi/step)*step,t=[];
+  for(let v=a;v<=b+step/2;v+=step)t.push(Math.round(v/step)*step);
+  return t;
+}
+function chartSVG(cum){
+  const W=560,H=270,L=62,R=14,T=26,B=46,iw=W-L-R,ih=H-T-B;
+  const lo=Math.min.apply(null,cum.concat([0])),hi=Math.max.apply(null,cum.concat([0]));
+  const tk=niceTicks(lo,hi,4),y0=tk[0],y1=tk[tk.length-1];
+  const Y=v=>T+ih*(1-(v-y0)/(y1-y0));
+  const slot=iw/cum.length,bw=slot*0.56;
+  let s='<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Flujo de caja acumulado por año, en millones de pesos">';
+  tk.forEach(t=>{s+='<line class="'+(t===0?'ax0':'grid')+'" x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(t).toFixed(1)+'" y2="'+Y(t).toFixed(1)+'" stroke-width="1"/><text x="'+(L-8)+'" y="'+(Y(t)+4).toFixed(1)+'" text-anchor="end">'+dec(t,0)+'</text>';});
+  cum.forEach((v,i)=>{
+    const x=L+slot*i+(slot-bw)/2,top=Y(Math.max(v,0)),bot=Y(Math.min(v,0)),h=Math.max(bot-top,1);
+    s+='<rect class="'+(v>=0?'pos':'neg')+'" x="'+x.toFixed(1)+'" y="'+top.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h.toFixed(1)+'"/>';
+    s+='<text class="val" x="'+(x+bw/2).toFixed(1)+'" y="'+(v>=0?top-6:bot+14).toFixed(1)+'" text-anchor="middle">'+dec(v,0)+'</text>';
+    s+='<text x="'+(x+bw/2).toFixed(1)+'" y="'+(H-14)+'" text-anchor="middle">'+(i===0?'Hoy':'Año '+i)+'</text>';
+  });
+  return s+'</svg>';
+}
+function gaugeSVG(score,band_){
+  const r=80,L=Math.PI*r,sc=Math.max(0,Math.min(100,score));
+  const pt=(s,rad)=>{const th=Math.PI*(1-s/100);return [(100+rad*Math.cos(th)).toFixed(1),(100-rad*Math.sin(th)).toFixed(1)];};
+  let t='';[Core.T_RISK,Core.T_OK].forEach(m=>{const a=pt(m,68),b=pt(m,92);t+='<line class="tickm" x1="'+a[0]+'" y1="'+a[1]+'" x2="'+b[0]+'" y2="'+b[1]+'" stroke-width="1.5"/>';});
+  return '<svg class="gauge" viewBox="0 0 200 124" role="img" aria-label="Puntaje '+Math.round(sc)+' de 100">'+
+    '<path class="track" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke-width="14"/>'+
+    '<path class="arc '+band_+'" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke-width="14" stroke-dasharray="'+(L*sc/100).toFixed(1)+' '+L.toFixed(1)+'"/>'+t+
+    '<text class="gnum" x="100" y="96" text-anchor="middle">'+Math.round(sc)+'</text><text class="gsub" x="100" y="115" text-anchor="middle">de 100</text></svg>';
+}
+function statStrip(c){
+  const r=c.rent;
+  if(!r.ok)return '<p class="hint">Completa el monto, la tasa y los flujos para ver el resultado de la inversión.</p>';
+  const pbT=r.pb==null?'No en 5 años':dec(r.pb,1)+' años';
+  const cell=(l,v,cls,sub)=>'<div class="stat"><div class="stat-l">'+l+'</div><div class="stat-v '+(cls||'')+'">'+v+'</div>'+(sub?'<div class="stat-s">'+sub+'</div>':'')+'</div>';
+  return '<div class="stats">'+
+    cell('VPN',money(r.vpn),r.vpn>=0?'good':'bad','Valor presente neto')+
+    cell('TIR',r.tir==null?'—':dec(r.tir*100,1)+'%',r.tir!=null&&r.tir>=r.rate?'good':'bad','Tasa de descuento '+dec(r.rate*100,1)+'%')+
+    cell('Índice VPN / monto',dec(r.idx,2),r.idx>=0?'good':'bad','Valor creado por peso invertido')+
+    cell('Recuperación',pbT,r.pb==null?'bad':'','Incluye el valor de salida')+
+  '</div>';
+}
+function pillFor(score){
+  if(score==null)return '<span class="pill">Sin dato</span>';
+  const b=band(score);return '<span class="pill '+b+'">'+(b==='good'?'Bien':b==='warn'?'Atención':'Débil')+'</span>';
+}
+function indTable(c){
+  const rows=c.inds.map(i=>'<tr><td>'+i.label+'</td><td class="num">'+i.val+'</td><td>'+i.ref+'</td><td>'+pillFor(i.score)+'</td></tr>').join('');
+  return '<div class="tscroll"><table class="tbl"><thead><tr><th>Indicador</th><th>Empresa</th><th>Referencia del sector</th><th>Estado</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+function viewResult(){
+  const c=Core.compute(state),V=VERDICT[c.verdict],p=state.profile;
+  const weak=c.areas.slice().sort((a,b)=>a.score-b.score)[0];
+  let lead;
+  if(c.verdict==='good')lead='La inversión cumple los criterios en la mayoría de las áreas. El área más débil es '+weak.name.toLowerCase()+' ('+Math.round(weak.score)+' de 100).';
+  else if(c.verdict==='warn')lead='La inversión puede funcionar si se resuelven los puntos del plan de mejora. El área más débil es '+weak.name.toLowerCase()+' ('+Math.round(weak.score)+' de 100).';
+  else lead='Con la información actual la inversión no alcanza el nivel mínimo. El plan de mejora muestra qué cambiar primero.';
+  if(c.capped)lead+=' Aunque el puntaje es alto, hay alertas críticas que impiden calificarla como viable.';
+  let html='<div class="panel"><div class="verdict">'+gaugeSVG(c.total,c.verdict)+'<div>'+
+    '<p class="progress">'+esc(p.empresa||'Empresa sin nombre')+' · '+esc(SECTORS[p.sector].name)+' · '+esc(SOC[p.sociedad].name)+'</p>'+
+    '<div class="verdict-title"><h1 tabindex="-1">'+V.title+'</h1><span class="chip '+c.verdict+'">Puntaje '+Math.round(c.total)+'</span></div>'+
+    '<p>'+lead+'</p><p class="legend">Viable desde '+Core.T_OK+' puntos. Con riesgo entre '+Core.T_RISK+' y '+(Core.T_OK-1)+'. No viable bajo '+Core.T_RISK+'.</p></div></div>';
+  if(state.example)html+='<div class="note">Este resultado usa datos de ejemplo de una empresa ficticia.</div>';
+  if(c.incomplete.length)html+='<div class="note">'+c.incomplete.map(esc).join('<br>')+'</div>';
+  html+='</div>';
+  if(c.alerts.length)html+='<div class="alerts">'+c.alerts.map(a=>'<div class="alert '+a.sev+'"><b>'+(a.sev==='bad'?'Crítica':'Atención')+'</b><span>'+esc(a.text)+'</span></div>').join('')+'</div>';
+
+  html+='<section class="section"><h2>Puntaje por área</h2>'+c.areas.map(a=>{
+    const b=band(a.score);
+    return '<div class="area"><div class="area-h"><span class="area-n">'+a.name+'<small>peso '+a.weight+'%</small></span><span class="area-s '+b+'">'+Math.round(a.score)+'</span></div><div class="bar" role="img" aria-label="'+a.name+': '+Math.round(a.score)+' de 100"><i class="'+b+'" style="width:'+a.score.toFixed(0)+'%"></i></div></div>';
+  }).join('')+'</section>';
+
+  html+='<section class="section"><h2>Rentabilidad de la inversión</h2>'+statStrip(c);
+  if(c.rent.ok)html+='<p class="cap">Flujo acumulado por año, en millones de pesos. El último año incluye el valor de salida.</p><div class="tscroll panel">'+chartSVG(c.rent.cum)+'</div>';
+  html+='</section>';
+
+  html+='<section class="section"><h2>La empresa frente a su sector</h2><div class="panel">'+indTable(c)+'<p class="hint" style="margin-top:10px">Las referencias son orientativas. Ajústalas con datos recientes de tu sector si tienes acceso a ellos.</p></div></section>';
+
+  const top=c.plan.slice(0,6);
+  html+='<section class="section"><h2>Plan de mejora</h2>';
+  if(!top.length){html+='<p>No hay puntos débiles que mejorar con la información actual.</p>';}
+  else{
+    html+='<div class="panel"><ol class="plan">'+top.map((x,i)=>
+      '<li class="plan-item"><span class="rank">'+(i+1)+'</span><div><div class="plan-top"><b>'+esc(x.label)+'</b><span class="tag">'+AREA_NAME[x.area]+'</span><span class="gain">hasta +'+dec(x.gain,1)+' pts</span></div><div class="plan-detail">'+esc(x.detail)+'</div><div class="plan-fix">'+esc(x.fix)+'</div>'+
+      (x.list?'<ul class="plan-list">'+x.list.map(n=>'<li>'+esc(n)+'</li>').join('')+'</ul>':'')+'</div></li>').join('')+'</ol>'+
+      '<div class="proj">Si resuelves las 3 primeras acciones, el puntaje podría pasar de <b>'+Math.round(c.total)+'</b> a cerca de <b>'+Math.round(c.proj)+'</b>. Es un estimado: supone que cada punto débil llega a su mejor nivel.</div></div>';
+  }
+  html+='</section>';
+
+  html+='<div class="nav"><button type="button" class="btn" data-go="4">Atrás</button><button type="button" class="btn primary" data-act="copy">Copiar resumen</button></div><div id="copyOut"></div>';
+  return html;
+}
+function summaryText(){
+  const c=Core.compute(state),p=state.profile,r=c.rent;
+  const L=[];
+  L.push('Evaluación de inversión: '+(p.empresa||'Empresa sin nombre'));
+  L.push('Sector: '+SECTORS[p.sector].name+' · Sociedad: '+SOC[p.sociedad].name+' · Tamaño: '+TAMANOS.find(t=>t.id===p.tamano).name);
+  L.push('Tipo de inversión: '+TIPOS[p.tipo].name);
+  L.push('Puntaje: '+Math.round(c.total)+' de 100 ('+VERDICT[c.verdict].title+')');
+  L.push(c.areas.map(a=>a.name+' '+Math.round(a.score)).join(' · '));
+  if(r.ok)L.push('VPN '+money(r.vpn)+' · TIR '+(r.tir==null?'—':dec(r.tir*100,1)+'%')+' · Recuperación '+(r.pb==null?'más de 5 años':dec(r.pb,1)+' años'));
+  if(c.alerts.length){L.push('Alertas:');c.alerts.forEach(a=>L.push('- '+a.text));}
+  if(c.plan.length){L.push('Plan de mejora:');c.plan.slice(0,6).forEach((x,i)=>L.push((i+1)+'. '+x.label+' (hasta +'+dec(x.gain,1)+' pts): '+x.fix));}
+  return L.join('\n');
+}
+
+// ---------- refresco ----------
+function updateLive(){
+  const c=Core.compute(state),chip=$('#liveChip');
+  $('#liveNum').textContent=c.hasData?String(Math.round(c.total)):'—';
+  if(!c.hasData){chip.className='chip';chip.textContent='Sin datos';}
+  else{chip.className='chip '+c.verdict;chip.textContent=VERDICT[c.verdict].chip;}
+  const p=state.profile;
+  $('#companyLabel').textContent=(p.empresa||'Sin nombre')+' · '+SECTORS[p.sector].name+' · '+SOC[p.sociedad].name;
+  return c;
+}
+function refreshStep(c){
+  if(step===0){
+    const docs=Core.buildDocs(state.profile),e=docs.filter(d=>d.level==='esencial').length,sec=SECTORS[state.profile.sector];
+    $('#profileSummary').innerHTML='Se pedirán <b>'+docs.length+' documentos</b> ('+e+' esenciales). La empresa se compara con referencias de <b>'+esc(sec.name)+'</b>: endeudamiento hasta '+dec(sec.end[1],0)+'%, liquidez desde '+dec(sec.liq[1],2)+' y margen EBITDA desde '+dec(sec.ebitda[1],0)+'%.';
+  }else if(step===1){
+    $('#finDerived').innerHTML=indTable(c)+c.warnings.map(w=>'<div class="note">'+esc(w)+'</div>').join('');
+  }else if(step===2){
+    $('#invDerived').innerHTML=statStrip(c);
+  }else if(step===3){
+    const n=Q.filter(q=>state.q[q.id]!=null).length;$('#qProg').textContent=n+' de '+Q.length+' respondidas.';
+  }else if(step===4){
+    const docs=c.docs.list,n=docs.filter(d=>state.d[d.id]!=null).length;$('#dProg').textContent=n+' de '+docs.length+' marcados.';
+  }
+}
+function renderBar(){
+  barEl.innerHTML=state.example
+    ? '<span>Datos de ejemplo de una empresa ficticia. Cámbialos por los de la empresa que vas a evaluar.</span><span class="btns"><button type="button" class="btn small" data-act="clear">Limpiar todo</button></span>'
+    : '<span></span><span class="btns"><button type="button" class="btn small" data-act="example">Cargar ejemplo</button><button type="button" class="btn small" data-act="clear">Limpiar todo</button></span>';
+}
+function renderSteps(){
+  stepsEl.innerHTML=STEPS.map((n,i)=>'<button type="button" class="step" data-go="'+i+'"'+(i===step?' aria-current="step"':'')+'><span class="step-n">'+(i+1)+'</span><span>'+n+'</span></button>').join('');
+  const cur=stepsEl.querySelector('[aria-current="step"]');
+  if(cur&&cur.scrollIntoView)cur.scrollIntoView({block:'nearest',inline:'center'});
+}
+function renderView(){
+  view.innerHTML=[viewProfile,viewFin,viewInv,viewQ,viewDocs,viewResult][step]();
+  refreshStep(updateLive());
+}
+function go(i){
+  step=Math.max(0,Math.min(5,i));
+  renderSteps();renderView();window.scrollTo(0,0);
+  const h=view.querySelector('h1');if(h)h.focus({preventScroll:true});
+}
+
+// ---------- eventos ----------
+view.addEventListener('input',function(e){
+  const t=e.target;if(!t.dataset||!t.dataset.k)return;
+  let v=t.value;
+  if(t.type==='radio'){if(!t.checked)return;if(t.dataset.n)v=Number(v);}
+  setPath(t.dataset.k,v);
+  if(state.example){state.example=false;renderBar();}
+  save();refreshStep(updateLive());
+});
+document.addEventListener('click',function(e){
+  const b=e.target.closest('[data-go],[data-act]');if(!b)return;
+  if(b.dataset.go!=null){go(Number(b.dataset.go));return;}
+  const a=b.dataset.act;
+  if(a==='example'){state=Core.exampleState();save();renderBar();go(0);}
+  else if(a==='clear'){state=Core.blankState();save();renderBar();go(0);}
+  else if(a==='copy'){
+    const text=summaryText(),out=$('#copyOut');
+    const fallback=function(){out.innerHTML='<textarea class="copybox" id="copyBox" readonly></textarea>';const ta=$('#copyBox');ta.value=text;ta.focus();ta.select();};
+    try{
+      navigator.clipboard.writeText(text).then(function(){out.innerHTML='<div class="note" style="color:var(--good-ink);background:var(--good-soft)">Resumen copiado.</div>';},fallback);
+    }catch(err){fallback();}
+  }
+});
+
+renderBar();renderSteps();renderView();
+})();
+</script>
+
+</body>
+</html>
